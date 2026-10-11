@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pickup Table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+
+<!-- ============ YOUR SETTINGS (edit these) ============ -->
+<script>
+  const CONFIG = {
+    // From Supabase: Project Settings → API
+    SUPABASE_URL: "https://ocwnnvqcavgjwlvipuee.supabase.co",       // e.g. https://abcd1234.supabase.co
+    SUPABASE_ANON_KEY: "sb_publishable_N5jooJ8rnc5ZZNOcNWI21w_Xmij9JiF",
+    SITE_TITLE: "Pickup Table",
+    SITE_INTRO: "Things I'm giving away, selling, or auctioning. Claim free and fixed-price items; bid on auction items.",
+    CURRENCY: "€",
+    ITEMS_FILE: "items.xlsx",   // your Excel file, in the same folder as this page
+    IMAGES_FOLDER: "images/"
+  };
+</script>
+<!-- ==================================================== -->
+
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+
+<style>
+:root{
+  --bg:#eef0ea; --surface:#fbfcf8; --ink:#1d2420; --muted:#5d675f; --line:#d3d8cf;
+  --tag:#e8b33a; --tag-ink:#3a2a05; --bid:#2f5f8a; --bid-bg:#e0eaf3;
+  --ok:#2f7a4f; --ok-bg:#e1efe5; --bad:#a3352c; --bad-bg:#f6e2df;
+  --display:"Bricolage Grotesque",ui-sans-serif,system-ui,sans-serif;
+  --body:"Atkinson Hyperlegible",ui-sans-serif,system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141814; --surface:#1d221e; --ink:#e7ebe4; --muted:#9aa49b; --line:#323a33;
+  --tag:#e2ad35; --tag-ink:#2a1e03; --bid:#8dbbe6; --bid-bg:#1f2c38;
+  --ok:#7cc79a; --ok-bg:#1f3327; --bad:#ec8a80; --bad-bg:#3a2220; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 16px calc(64px + env(safe-area-inset-bottom,0px));display:grid;gap:24px}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(2rem,7vw,3rem);line-height:1;margin:0;letter-spacing:-.02em}
+.lede{color:var(--muted);margin:8px 0 0;max-width:60ch}
+.banner{background:var(--bad-bg);color:var(--bad);padding:10px 14px;border-radius:8px;font-size:.9rem}
+.who{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px}
+.who label{font-weight:700;font-size:.9rem}
+input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);min-width:0}
+.who input{flex:1 1 180px}
+.filters{display:flex;gap:8px;flex-wrap:wrap}
+.filters button{background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:400;padding:6px 12px;border-radius:99px}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.grid{display:grid;gap:16px;grid-template-columns:1fr}
+@media (min-width:600px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media (min-width:900px){.grid{grid-template-columns:repeat(3,1fr)}}
+@media (min-width:1200px){.grid{grid-template-columns:repeat(4,1fr)}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.photo{aspect-ratio:4/3;width:100%;max-width:100%;object-fit:cover;display:block;background:var(--line)}
+.ph{aspect-ratio:4/3;display:grid;place-items:center;font-family:var(--display);font-weight:800;font-size:3rem;color:#fbfcf8}
+.body{padding:14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.body h2{font-family:var(--display);font-weight:500;font-size:1.2rem;margin:0;line-height:1.2}
+.body p{margin:0;color:var(--muted);font-size:.92rem}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.price{background:var(--tag);color:var(--tag-ink);font-weight:700;font-size:.85rem;padding:2px 10px;border-radius:4px;font-variant-numeric:tabular-nums}
+.kind{background:var(--bid-bg);color:var(--bid);font-weight:700;font-size:.8rem;padding:2px 10px;border-radius:4px;letter-spacing:.04em;text-transform:uppercase}
+.auction{border-top:1px solid var(--line);margin-top:4px;padding-top:8px;display:grid;gap:2px}
+.big{font-family:var(--display);font-weight:800;font-size:1.5rem;font-variant-numeric:tabular-nums;line-height:1.1}
+.small{font-size:.85rem;color:var(--muted)}
+.countdown{font-variant-numeric:tabular-nums;font-weight:700;color:var(--bid)}
+.history{font-size:.88rem;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.history summary{cursor:pointer;font-weight:700;color:var(--bid)}
+.history ol{list-style:none;margin:6px 0 2px;padding:0;display:grid;gap:2px;max-height:180px;overflow-y:auto}
+.history li{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:3px 0;border-top:1px solid var(--line);color:var(--muted)}
+.history li:first-child{border-top:none}
+.history li.top{color:var(--ink);font-weight:700}
+.history .amt{font-variant-numeric:tabular-nums;text-align:right}
+.history .t{font-size:.8rem;min-width:5.5em;text-align:right}
+.history em{font-style:normal;font-size:.75rem;background:var(--ok-bg);color:var(--ok);padding:0 6px;border-radius:99px}
+.actions{margin-top:auto;padding-top:8px;display:grid;gap:6px}
+.bidrow{display:flex;gap:6px}
+.bidrow input{flex:1;width:0}
+button{font:inherit;font-weight:700;cursor:pointer;border-radius:8px;padding:10px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--surface)}
+button.bidbtn{background:var(--bid);border-color:var(--bid);color:var(--surface)}
+button.link{background:transparent;border:none;color:var(--bad);padding:0;font-weight:700;text-decoration:underline;font-size:.85rem}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid var(--tag);outline-offset:2px}
+.state{text-align:center;font-weight:700;padding:10px;border-radius:8px}
+.state.mine{background:var(--ok-bg);color:var(--ok)}
+.state.taken{background:var(--line);color:var(--muted)}
+.mybid{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--ok-bg);color:var(--ok);padding:6px 10px;border-radius:6px;font-size:.88rem;font-weight:700}
+.mybid.out{background:var(--bad-bg);color:var(--bad)}
+.card.is-taken .photo,.card.is-taken .ph{filter:grayscale(1);opacity:.6}
+.msg{font-size:.85rem;color:var(--bad);background:var(--bad-bg);padding:6px 8px;border-radius:6px}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:24px;color:var(--muted);text-align:center;grid-column:1/-1}
+.foot{color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="title"></h1>
+    <p class="lede" id="intro"></p>
+  </header>
+
+  <div class="banner" id="banner" hidden></div>
+
+  <div class="who">
+    <label for="name">Your name</label>
+    <input id="name" placeholder="Who is picking it up?" autocomplete="name">
+    <label for="contact">Phone or email</label>
+    <input id="contact" placeholder="So I can reach you" autocomplete="tel">
+  </div>
+
+  <div class="filters" role="group" aria-label="Show">
+    <button data-f="all" aria-pressed="true">All</button>
+    <button data-f="free" aria-pressed="false">Free</button>
+    <button data-f="auction" aria-pressed="false">Auctions</button>
+    <button data-f="open" aria-pressed="false">Still available</button>
+  </div>
+
+  <section class="grid" id="grid" aria-live="polite"><div class="empty">Loading items…</div></section>
+
+  <p class="foot">Other visitors only see your first name on bids. Your contact details are only visible to the owner. You can withdraw a bid from this same device until the auction ends.</p>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+document.title = CONFIG.SITE_TITLE;
+$("#title").textContent = CONFIG.SITE_TITLE;
+$("#intro").textContent = CONFIG.SITE_INTRO;
+
+const COLORS = ["#4f7a63","#8a6a3f","#3f6a8a","#7a4f6e","#5f7a3f","#8a4f45"];
+let items = [], taken = new Set(), auctions = {}, bids = {}, errors = {}, busy = {}, drafts = {}, filter = "all";
+const openHist = new Set();   // which bid histories are expanded (kept open across refreshes)
+
+// Remembered on this device only
+const store = {
+  get(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
+};
+$("#name").value = store.get("pt-name", "");
+$("#contact").value = store.get("pt-contact", "");
+$("#name").oninput = e => store.set("pt-name", e.target.value.trim());
+$("#contact").oninput = e => store.set("pt-contact", e.target.value.trim());
+let mine = new Set(store.get("pt-mine", []));      // items I claimed
+let myBids = store.get("pt-bids", []);              // [{bid_id, token, item_id, amount}]
+const saveMyBids = () => store.set("pt-bids", myBids);
+
+// Supabase
+const configured = !CONFIG.SUPABASE_URL.startsWith("PASTE") && !CONFIG.SUPABASE_ANON_KEY.startsWith("PASTE");
+const sb = configured ? supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_ANON_KEY) : null;
+if (!configured) showBanner("Claims and bids are not connected yet. Add your Supabase URL and key at the top of index.html.");
+
+function showBanner(t){ const b = $("#banner"); b.textContent = t; b.hidden = false; }
+function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])) }
+function money(n){ n = Number(n); return CONFIG.CURRENCY + (Number.isInteger(n) ? n : n.toFixed(2)); }
+function priceLabel(p){
+  const n = Number(String(p).replace(",", "."));
+  if (p === "" || p == null || n === 0 || /^free$/i.test(String(p).trim())) return "Free";
+  return isNaN(n) ? String(p) : money(n);
+}
+function timeLeft(ends){
+  let s = Math.floor((new Date(ends) - Date.now()) / 1000);
+  if (s <= 0) return "Ended";
+  const d = Math.floor(s / 86400); s %= 86400;
+  const h = Math.floor(s / 3600); s %= 3600;
+  const m = Math.floor(s / 60); s %= 60;
+  return (d ? d + "d " : "") + (d || h ? h + "h " : "") + m + "m " + (d ? "" : s + "s") + " left";
+}
+const isAuction = it => it.type === "auction";
+const ended = a => a && new Date(a.ends_at) <= Date.now();
+
+// ---------- Loading ----------
+async function loadItems(){
+  const res = await fetch(CONFIG.ITEMS_FILE, {cache: "no-store"});
+  if (!res.ok) throw new Error("Could not find " + CONFIG.ITEMS_FILE);
+  const wb = XLSX.read(await res.arrayBuffer(), {type: "array"});
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {defval: ""});
+  return rows.map(r => {
+    const o = {}; for (const k in r) o[k.trim().toLowerCase()] = r[k];
+    return { id: String(o.id).trim(), title: o.title, description: o.description, price: o.price,
+             image: String(o.image || "").trim(), type: String(o.type || "claim").trim().toLowerCase(),
+             show: String(o.show ?? "yes").trim().toLowerCase() };
+  }).filter(it => it.id && it.title && it.show !== "no");
+}
+
+async function loadState(){
+  if (!sb) return;
+  const [c, a, b] = await Promise.all([
+    sb.from("claims").select("item_id"),
+    sb.from("auctions").select("item_id,start_price,min_step,ends_at"),
+    sb.from("bids_public").select("id,item_id,initials,amount,created_at").order("amount", {ascending: false})
+  ]);
+  if (c.error || a.error || b.error) { showBanner("Could not load the latest claims and bids. Refresh to try again."); return; }
+  taken = new Set(c.data.map(d => String(d.item_id)));
+  auctions = {}; a.data.forEach(x => auctions[String(x.item_id)] = x);
+  bids = {}; b.data.forEach(x => (bids[x.item_id] ||= []).push(x));
+}
+
+// ---------- Rendering ----------
+function photoHtml(it, i){
+  const ph = `<div class="ph" style="background:${COLORS[i % 6]}">${esc(String(it.title)[0])}</div>`;
+  if (!it.image) return ph;
+  return `<img class="photo" src="${esc(CONFIG.IMAGES_FOLDER + it.image)}" alt="${esc(it.title)}" loading="lazy" onerror="this.outerHTML='${ph.replace(/"/g, "&quot;")}'">`;
+}
+
+function when(t){
+  const d = new Date(t), mins = Math.round((Date.now() - d) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + " min ago";
+  if (mins < 24 * 60) return Math.round(mins / 60) + " h ago";
+  return d.toLocaleDateString(undefined, {day: "numeric", month: "short"}) + " " + d.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"});
+}
+function historyHtml(id, list){
+  if (!list.length) return "";
+  const myIds = new Set(myBids.map(m => m.bid_id));
+  return `<details class="history" data-hist="${esc(id)}" ${openHist.has(id) ? "open" : ""}>
+    <summary>Bid history (${list.length})</summary>
+    <ol>${list.map((b, i) => `<li class="${i === 0 ? "top" : ""}">
+      <span class="who-i">${esc(b.initials)}${myIds.has(b.id) ? ' <em>you</em>' : ""}</span>
+      <span class="amt">${money(b.amount)}</span>
+      <span class="t">${when(b.created_at)}</span></li>`).join("")}</ol></details>`;
+}
+
+function auctionHtml(it){
+  const a = auctions[it.id];
+  if (!a) return `<div class="msg">This auction isn't set up yet.</div>`;
+  const list = bids[it.id] || [], top = list[0], over = ended(a);
+  const need = top ? Number(top.amount) + Number(a.min_step) : Math.max(Number(a.start_price), 0.01);
+  const myActive = myBids.filter(m => m.item_id === it.id && list.some(b => b.id === m.bid_id));
+  let h = `<div class="auction">
+    <span class="small">${top ? (over ? "Winning bid" : "Highest bid") : "Starting price"}</span>
+    <span class="big">${money(top ? top.amount : a.start_price)}</span>
+    <span class="small">${top ? `by ${esc(top.initials)} · ${list.length} bid${list.length > 1 ? "s" : ""}` : "No bids yet"}</span>
+    <span class="countdown" data-ends="${esc(a.ends_at)}">${timeLeft(a.ends_at)}</span></div>
+    ${historyHtml(it.id, list)}
+    <div class="actions">`;
+  for (const m of myActive){
+    const leading = top && top.id === m.bid_id;
+    h += `<div class="mybid ${leading ? "" : "out"}"><span>Your bid ${money(m.amount)} · ${leading ? (over ? "you won" : "leading") : "outbid"}</span>
+      ${over ? "" : `<button class="link" data-act="withdraw" data-bid="${m.bid_id}" ${busy["w" + m.bid_id] ? "disabled" : ""}>Withdraw</button>`}</div>`;
+  }
+  if (over) h += `<div class="state taken">${top ? "Auction ended" : "Ended with no bids"}</div>`;
+  else h += `<div class="bidrow">
+      <input id="bid-${esc(it.id)}" type="number" inputmode="decimal" min="${need}" step="0.5" data-draft="${esc(it.id)}"
+        value="${esc(drafts[it.id] ?? need)}" aria-label="Your bid for ${esc(it.title)}">
+      <button class="bidbtn" data-act="bid" data-id="${esc(it.id)}" ${busy[it.id] || !sb ? "disabled" : ""}>${busy[it.id] ? "Bidding…" : "Bid"}</button></div>
+      <span class="small">Minimum bid ${money(need)}</span>`;
+  if (errors[it.id]) h += `<div class="msg" role="alert">${esc(errors[it.id])}</div>`;
+  return h + `</div>`;
+}
+
+function claimHtml(it){
+  const isMine = mine.has(it.id) && taken.has(it.id), isTaken = taken.has(it.id);
+  let h = `<div class="actions">`;
+  if (isMine) h += `<div class="state mine">Claimed by you</div>`;
+  else if (isTaken) h += `<div class="state taken">Already taken</div>`;
+  else h += `<button data-act="claim" data-id="${esc(it.id)}" ${busy[it.id] || !sb ? "disabled" : ""}>${busy[it.id] ? "Claiming…" : "Claim"}</button>`;
+  if (errors[it.id]) h += `<div class="msg" role="alert">${esc(errors[it.id])}</div>`;
+  return h + `</div>`;
+}
+
+function isOpen(it){ return isAuction(it) ? !ended(auctions[it.id]) : !taken.has(it.id); }
+
+function render(){
+  const grid = $("#grid");
+  let list = items;
+  if (filter === "free") list = list.filter(it => !isAuction(it) && priceLabel(it.price) === "Free");
+  if (filter === "auction") list = list.filter(isAuction);
+  if (filter === "open") list = list.filter(isOpen);
+  if (!list.length){ grid.innerHTML = '<div class="empty">No items to show here.</div>'; return; }
+  grid.innerHTML = list.map(it => {
+    const i = items.indexOf(it), dim = !isOpen(it) && !mine.has(it.id);
+    const tags = isAuction(it) ? `<span class="kind">Auction</span>` : `<span class="price">${esc(priceLabel(it.price))}</span>`;
+    return `<article class="card ${dim ? "is-taken" : ""}">${photoHtml(it, i)}
+      <div class="body"><div class="tags">${tags}</div>
+      <h2>${esc(it.title)}</h2><p>${esc(it.description)}</p>
+      ${isAuction(it) ? auctionHtml(it) : claimHtml(it)}</div></article>`;
+  }).join("");
+}
+// Don't redraw while someone is typing a bid
+function safeRender(){ if (!document.activeElement?.dataset?.draft) render(); }
+
+// ---------- Actions ----------
+function who(id){
+  const name = $("#name").value.trim(), contact = $("#contact").value.trim();
+  if (!name || !contact){ errors[id] = "Fill in your name and phone or email at the top first."; render(); $("#name").focus(); return null; }
+  return {name, contact};
+}
+
+async function claim(id){
+  const w = who(id); if (!w) return;
+  errors[id] = null; busy[id] = true; render();
+  const { error } = await sb.from("claims").insert({ item_id: id, ...w });   // only ONE row per item is allowed
+  busy[id] = false;
+  if (!error){ taken.add(id); mine.add(id); store.set("pt-mine", [...mine]); }
+  else if (error.code === "23505"){ taken.add(id); errors[id] = "Sorry, someone already claimed this."; }
+  else errors[id] = "Couldn't save your claim. Please try again.";
+  render();
+}
+
+async function bid(id){
+  const w = who(id); if (!w) return;
+  const amount = Number(String(drafts[id] ?? $("#bid-" + CSS.escape(id))?.value ?? "").replace(",", "."));
+  if (!amount || amount <= 0){ errors[id] = "Enter an amount to bid."; render(); return; }
+  errors[id] = null; busy[id] = true; render();
+  const { data, error } = await sb.rpc("place_bid", { p_item: id, p_name: w.name, p_contact: w.contact, p_amount: amount });
+  busy[id] = false;
+  if (!error){
+    myBids.push({ bid_id: data.bid_id, token: data.token, item_id: id, amount: data.amount }); saveMyBids();
+    delete drafts[id];
+  } else {
+    const m = error.message || "";
+    if (m.startsWith("TOO_LOW:")) { errors[id] = `Someone bid higher. Bid at least ${money(m.split(":")[1])}.`; delete drafts[id]; }
+    else if (m === "CLOSED") errors[id] = "Bidding has closed for this item.";
+    else errors[id] = "Couldn't place your bid. Please try again.";
+  }
+  await loadState(); render();
+}
+
+async function withdraw(bidId){
+  const m = myBids.find(x => x.bid_id === bidId); if (!m) return;
+  busy["w" + bidId] = true; render();
+  const { error } = await sb.rpc("withdraw_bid", { p_bid: bidId, p_token: m.token });
+  busy["w" + bidId] = false;
+  if (!error){ myBids = myBids.filter(x => x.bid_id !== bidId); saveMyBids(); }
+  else errors[m.item_id] = error.message === "CLOSED" ? "The auction has ended, so bids can't be withdrawn." : "Couldn't withdraw your bid. Please try again.";
+  await loadState(); render();
+}
+
+$("#grid").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act]"); if (!b) return;
+  if (b.dataset.act === "claim") claim(b.dataset.id);
+  if (b.dataset.act === "bid") bid(b.dataset.id);
+  if (b.dataset.act === "withdraw") withdraw(Number(b.dataset.bid));
+});
+$("#grid").addEventListener("toggle", e => {
+  const d = e.target; if (!d.dataset?.hist) return;
+  d.open ? openHist.add(d.dataset.hist) : openHist.delete(d.dataset.hist);
+}, true);
+$("#grid").addEventListener("input", e => { if (e.target.dataset.draft) drafts[e.target.dataset.draft] = e.target.value; });
+document.querySelectorAll(".filters button").forEach(b => b.onclick = () => {
+  filter = b.dataset.f;
+  document.querySelectorAll(".filters button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  render();
+});
+
+// ---------- Start ----------
+(async () => {
+  try { items = await loadItems(); }
+  catch (e) { $("#grid").innerHTML = `<div class="empty">${esc(e.message)}. Upload your Excel file next to index.html.</div>`; return; }
+  await loadState(); render();
+  if (sb) sb.channel("claims").on("postgres_changes", {event: "*", schema: "public", table: "claims"}, () => loadState().then(safeRender)).subscribe();
+  setInterval(() => loadState().then(safeRender), 10000);   // refresh bids every 10 s
+  setInterval(() => {                                          // tick the countdowns
+    let flipped = false;
+    document.querySelectorAll(".countdown").forEach(el => {
+      const t = timeLeft(el.dataset.ends); if (t === "Ended" && el.textContent !== "Ended") flipped = true; el.textContent = t;
+    });
+    if (flipped) safeRender();
+  }, 1000);
+})();
+</script>
+</body>
+</html>
