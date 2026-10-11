@@ -11,8 +11,8 @@
 <script>
   const CONFIG = {
     // From Supabase: Project Settings → API
-    SUPABASE_URL: "https://ocwnnvqcavgjwlvipuee.supabase.co",       // e.g. https://abcd1234.supabase.co
-    SUPABASE_ANON_KEY: "sb_publishable_N5jooJ8rnc5ZZNOcNWI21w_Xmij9JiF",
+    SUPABASE_URL: "PASTE_YOUR_PROJECT_URL_HERE",       // e.g. https://abcd1234.supabase.co
+    SUPABASE_ANON_KEY: "PASTE_YOUR_ANON_PUBLIC_KEY_HERE",
     SITE_TITLE: "Pickup Table",
     SITE_INTRO: "Things I'm giving away, selling, or auctioning. Claim free and fixed-price items; bid on auction items.",
     CURRENCY: "€",
@@ -121,7 +121,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--tag);outline-of
 
   <section class="grid" id="grid" aria-live="polite"><div class="empty">Loading items…</div></section>
 
-  <p class="foot">Other visitors only see your first name on bids. Your contact details are only visible to the owner. You can withdraw a bid from this same device until the auction ends.</p>
+  <p class="foot">Other visitors only see your first name on bids. Your contact details are only visible to the owner. You can cancel a claim, or withdraw a bid until the auction ends, from this same device.</p>
 </div>
 
 <script>
@@ -143,7 +143,9 @@ $("#name").value = store.get("pt-name", "");
 $("#contact").value = store.get("pt-contact", "");
 $("#name").oninput = e => store.set("pt-name", e.target.value.trim());
 $("#contact").oninput = e => store.set("pt-contact", e.target.value.trim());
-let mine = new Set(store.get("pt-mine", []));      // items I claimed
+let myClaims = store.get("pt-claims", []);          // [{item_id, token}] items I claimed
+const saveMyClaims = () => store.set("pt-claims", myClaims);
+const claimedByMe = id => myClaims.some(c => c.item_id === id);
 let myBids = store.get("pt-bids", []);              // [{bid_id, token, item_id, amount}]
 const saveMyBids = () => store.set("pt-bids", myBids);
 
@@ -252,9 +254,10 @@ function auctionHtml(it){
 }
 
 function claimHtml(it){
-  const isMine = mine.has(it.id) && taken.has(it.id), isTaken = taken.has(it.id);
+  const isMine = claimedByMe(it.id) && taken.has(it.id), isTaken = taken.has(it.id);
   let h = `<div class="actions">`;
-  if (isMine) h += `<div class="state mine">Claimed by you</div>`;
+  if (isMine) h += `<div class="mybid"><span>Claimed by you</span>
+      <button class="link" data-act="unclaim" data-id="${esc(it.id)}" ${busy["u" + it.id] ? "disabled" : ""}>Cancel claim</button></div>`;
   else if (isTaken) h += `<div class="state taken">Already taken</div>`;
   else h += `<button data-act="claim" data-id="${esc(it.id)}" ${busy[it.id] || !sb ? "disabled" : ""}>${busy[it.id] ? "Claiming…" : "Claim"}</button>`;
   if (errors[it.id]) h += `<div class="msg" role="alert">${esc(errors[it.id])}</div>`;
@@ -271,7 +274,7 @@ function render(){
   if (filter === "open") list = list.filter(isOpen);
   if (!list.length){ grid.innerHTML = '<div class="empty">No items to show here.</div>'; return; }
   grid.innerHTML = list.map(it => {
-    const i = items.indexOf(it), dim = !isOpen(it) && !mine.has(it.id);
+    const i = items.indexOf(it), dim = !isOpen(it) && !claimedByMe(it.id);
     const tags = isAuction(it) ? `<span class="kind">Auction</span>` : `<span class="price">${esc(priceLabel(it.price))}</span>`;
     return `<article class="card ${dim ? "is-taken" : ""}">${photoHtml(it, i)}
       <div class="body"><div class="tags">${tags}</div>
@@ -292,12 +295,24 @@ function who(id){
 async function claim(id){
   const w = who(id); if (!w) return;
   errors[id] = null; busy[id] = true; render();
-  const { error } = await sb.from("claims").insert({ item_id: id, ...w });   // only ONE row per item is allowed
+  // The database allows only ONE claim per item; a second one fails with TAKEN
+  const { data, error } = await sb.rpc("claim_item", { p_item: id, p_name: w.name, p_contact: w.contact });
   busy[id] = false;
-  if (!error){ taken.add(id); mine.add(id); store.set("pt-mine", [...mine]); }
-  else if (error.code === "23505"){ taken.add(id); errors[id] = "Sorry, someone already claimed this."; }
+  if (!error){ taken.add(id); myClaims.push({ item_id: id, token: data.token }); saveMyClaims(); }
+  else if ((error.message || "") === "TAKEN"){ taken.add(id); errors[id] = "Sorry, someone already claimed this."; }
   else errors[id] = "Couldn't save your claim. Please try again.";
   render();
+}
+
+async function unclaim(id){
+  const c = myClaims.find(x => x.item_id === id); if (!c) return;
+  busy["u" + id] = true; render();
+  const { error } = await sb.rpc("unclaim_item", { p_item: id, p_token: c.token });
+  busy["u" + id] = false;
+  if (!error || error.message === "NOT_YOURS"){   // NOT_YOURS: already removed by the owner
+    myClaims = myClaims.filter(x => x.item_id !== id); saveMyClaims();
+  } else errors[id] = "Couldn't cancel your claim. Please try again.";
+  await loadState(); render();
 }
 
 async function bid(id){
@@ -332,6 +347,7 @@ async function withdraw(bidId){
 $("#grid").addEventListener("click", e => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
   if (b.dataset.act === "claim") claim(b.dataset.id);
+  if (b.dataset.act === "unclaim") unclaim(b.dataset.id);
   if (b.dataset.act === "bid") bid(b.dataset.id);
   if (b.dataset.act === "withdraw") withdraw(Number(b.dataset.bid));
 });
