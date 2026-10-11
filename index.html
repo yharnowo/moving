@@ -11,8 +11,8 @@
 <script>
   const CONFIG = {
     // From Supabase: Project Settings → API
-    SUPABASE_URL: "https://ocwnnvqcavgjwlvipuee.supabase.co",       // e.g. https://abcd1234.supabase.co
-    SUPABASE_ANON_KEY: "sb_publishable_N5jooJ8rnc5ZZNOcNWI21w_Xmij9JiF",
+    SUPABASE_URL: "PASTE_YOUR_PROJECT_URL_HERE",       // e.g. https://abcd1234.supabase.co
+    SUPABASE_ANON_KEY: "PASTE_YOUR_ANON_PUBLIC_KEY_HERE",
     SITE_TITLE: "Pickup Table",
     SITE_INTRO: "Things I'm giving away, selling, or auctioning. Claim free and fixed-price items; bid on auction items.",
     CURRENCY: "€",
@@ -82,11 +82,12 @@ input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6
 .bidrow input{flex:1;width:0}
 button{font:inherit;font-weight:700;cursor:pointer;border-radius:8px;padding:10px 14px;border:1px solid var(--ink);background:var(--ink);color:var(--surface)}
 button.bidbtn{background:var(--bid);border-color:var(--bid);color:var(--surface)}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 button.link{background:transparent;border:none;color:var(--bad);padding:0;font-weight:700;text-decoration:underline;font-size:.85rem}
+button.link.plain{color:var(--bid)}
 button:disabled{opacity:.5;cursor:default}
-button:focus-visible,input:focus-visible{outline:3px solid var(--tag);outline-offset:2px}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--tag);outline-offset:2px}
 .state{text-align:center;font-weight:700;padding:10px;border-radius:8px}
-.state.mine{background:var(--ok-bg);color:var(--ok)}
 .state.taken{background:var(--line);color:var(--muted)}
 .mybid{display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--ok-bg);color:var(--ok);padding:6px 10px;border-radius:6px;font-size:.88rem;font-weight:700}
 .mybid.out{background:var(--bad-bg);color:var(--bad)}
@@ -94,6 +95,31 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--tag);outline-of
 .msg{font-size:.85rem;color:var(--bad);background:var(--bad-bg);padding:6px 8px;border-radius:6px}
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:10px;padding:24px;color:var(--muted);text-align:center;grid-column:1/-1}
 .foot{color:var(--muted);font-size:.85rem}
+/* who box + personal code */
+.who{display:grid;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px}
+.fields{display:grid;gap:10px;grid-template-columns:1fr}
+@media (min-width:700px){.fields{grid-template-columns:1fr 1fr 12em}}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-weight:700;font-size:.9rem}
+.field .hint{font-size:.78rem;color:var(--muted)}
+#code,#m-code{text-transform:uppercase;letter-spacing:.08em;font-variant-numeric:tabular-nums}
+.mycode{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;background:var(--ok-bg);color:var(--ok);padding:8px 12px;border-radius:8px;font-size:.9rem}
+.mycode b{font-size:1.1rem;letter-spacing:.1em;color:var(--ink)}
+.whomsg{font-size:.9rem;color:var(--bad);background:var(--bad-bg);padding:8px 12px;border-radius:8px}
+/* my claims & bids */
+.mine{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.mine summary{cursor:pointer;font-weight:700;font-family:var(--display);font-size:1.1rem}
+.mine-body{display:grid;gap:10px;margin-top:10px}
+.lookup{display:grid;gap:10px;grid-template-columns:1fr}
+@media (min-width:700px){.lookup{grid-template-columns:1fr 12em auto;align-items:end}}
+.mylist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.mylist li{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
+.mylist .t{font-weight:700;min-width:0}
+.mylist .s{grid-column:1;font-size:.85rem;color:var(--muted)}
+.mylist button{grid-row:1/span 2;grid-column:2;padding:6px 12px;font-size:.9rem}
+.cmsg{margin:0;font-size:.9rem;padding:6px 10px;border-radius:6px}
+.cmsg.ok{background:var(--ok-bg);color:var(--ok)}
+.cmsg.bad{background:var(--bad-bg);color:var(--bad)}
 </style>
 </head>
 <body>
@@ -105,12 +131,23 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--tag);outline-of
 
   <div class="banner" id="banner" hidden></div>
 
-  <div class="who">
-    <label for="name">Your name</label>
-    <input id="name" placeholder="Who is picking it up?" autocomplete="name">
-    <label for="contact">Phone or email</label>
-    <input id="contact" placeholder="So I can reach you" autocomplete="tel">
-  </div>
+  <section class="who" aria-label="Your details">
+    <div class="fields">
+      <div class="field"><label for="name">Your name</label>
+        <input id="name" placeholder="Who is picking it up?" autocomplete="name"></div>
+      <div class="field"><label for="contact">Phone or email</label>
+        <input id="contact" placeholder="So I can reach you" autocomplete="tel"></div>
+      <div class="field"><label for="code">Personal code</label>
+        <input id="code" placeholder="e.g. K7P-Q29" autocomplete="off" spellcheck="false" maxlength="8">
+        <span class="hint">Only if you've claimed or bid before</span></div>
+    </div>
+    <div class="mycode" id="mycode" hidden>
+      <span>Your personal code</span><b id="mycode-val"></b>
+      <button class="link plain" id="copy-code" type="button">Copy</button>
+      <span>Keep it to manage your claims and bids from any device.</span>
+    </div>
+    <div class="whomsg" id="whomsg" role="alert" hidden></div>
+  </section>
 
   <div class="filters" role="group" aria-label="Show">
     <button data-f="all" aria-pressed="true">All</button>
@@ -121,7 +158,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--tag);outline-of
 
   <section class="grid" id="grid" aria-live="polite"><div class="empty">Loading items…</div></section>
 
-  <p class="foot">Other visitors only see your first name on bids. Your contact details are only visible to the owner. You can cancel a claim, or withdraw a bid until the auction ends, from this same device.</p>
+  <details class="mine" id="mine">
+    <summary>My claims &amp; bids</summary>
+    <div class="mine-body">
+      <form class="lookup" id="lookup" novalidate>
+        <div class="field"><label for="m-contact">Phone or email</label>
+          <input id="m-contact" placeholder="As you entered it" autocomplete="tel"></div>
+        <div class="field"><label for="m-code">Personal code</label>
+          <input id="m-code" placeholder="K7P-Q29" autocomplete="off" spellcheck="false" maxlength="8"></div>
+        <button type="submit" id="m-go">Show my items</button>
+      </form>
+      <p class="cmsg" id="m-msg" role="status" hidden></p>
+      <ul class="mylist" id="mylist"></ul>
+    </div>
+  </details>
+
+  <p class="foot">Other visitors only see your initials on bids. Your contact details and code are only visible to the owner. Bids can be withdrawn until the auction ends.</p>
 </div>
 
 <script>
@@ -132,22 +184,18 @@ $("#intro").textContent = CONFIG.SITE_INTRO;
 
 const COLORS = ["#4f7a63","#8a6a3f","#3f6a8a","#7a4f6e","#5f7a3f","#8a4f45"];
 let items = [], taken = new Set(), auctions = {}, bids = {}, errors = {}, busy = {}, drafts = {}, filter = "all";
-const openHist = new Set();   // which bid histories are expanded (kept open across refreshes)
+let mineData = null;            // {name, code, claims:[...], bids:[...]} for the person on this device
+const openHist = new Set();
 
 // Remembered on this device only
 const store = {
   get(k, d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
   set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)) }catch(e){} }
 };
-$("#name").value = store.get("pt-name", "");
-$("#contact").value = store.get("pt-contact", "");
-$("#name").oninput = e => store.set("pt-name", e.target.value.trim());
-$("#contact").oninput = e => store.set("pt-contact", e.target.value.trim());
-let myClaims = store.get("pt-claims", []);          // [{item_id, token}] items I claimed
-const saveMyClaims = () => store.set("pt-claims", myClaims);
-const claimedByMe = id => myClaims.some(c => c.item_id === id);
-let myBids = store.get("pt-bids", []);              // [{bid_id, token, item_id, amount}]
-const saveMyBids = () => store.set("pt-bids", myBids);
+for (const k of ["name", "contact", "code"]) {
+  $("#" + k).value = store.get("pt-" + k, "");
+  $("#" + k).addEventListener("input", e => store.set("pt-" + k, e.target.value.trim()));
+}
 
 // Supabase
 const configured = !CONFIG.SUPABASE_URL.startsWith("PASTE") && !CONFIG.SUPABASE_ANON_KEY.startsWith("PASTE");
@@ -157,6 +205,8 @@ if (!configured) showBanner("Claims and bids are not connected yet. Add your Sup
 function showBanner(t){ const b = $("#banner"); b.textContent = t; b.hidden = false; }
 function esc(s){ return String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])) }
 function money(n){ n = Number(n); return CONFIG.CURRENCY + (Number.isInteger(n) ? n : n.toFixed(2)); }
+const cleanCode = c => String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+const fmtCode = c => { c = cleanCode(c); return c.length === 6 ? c.slice(0, 3) + "-" + c.slice(3) : c; };
 function priceLabel(p){
   const n = Number(String(p).replace(",", "."));
   if (p === "" || p == null || n === 0 || /^free$/i.test(String(p).trim())) return "Free";
@@ -170,8 +220,17 @@ function timeLeft(ends){
   const m = Math.floor(s / 60); s %= 60;
   return (d ? d + "d " : "") + (d || h ? h + "h " : "") + m + "m " + (d ? "" : s + "s") + " left";
 }
+function when(t){
+  const d = new Date(t), mins = Math.round((Date.now() - d) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return mins + " min ago";
+  if (mins < 24 * 60) return Math.round(mins / 60) + " h ago";
+  return d.toLocaleDateString(undefined, {day: "numeric", month: "short"}) + " " + d.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"});
+}
 const isAuction = it => it.type === "auction";
 const ended = a => a && new Date(a.ends_at) <= Date.now();
+const titleOf = id => (items.find(x => x.id === String(id)) || {}).title || "Item " + id;
+const iClaimed = id => !!mineData && mineData.claims.some(c => c.item_id === id);
 
 // ---------- Loading ----------
 async function loadItems(){
@@ -200,6 +259,14 @@ async function loadState(){
   bids = {}; b.data.forEach(x => (bids[x.item_id] ||= []).push(x));
 }
 
+// What this device's person holds (uses the saved phone/email + code)
+async function loadMine(){
+  const contact = store.get("pt-contact", ""), code = cleanCode(store.get("pt-code", ""));
+  if (!sb || !contact || code.length !== 6) { mineData = null; return; }
+  const { data, error } = await sb.rpc("my_items", { p_contact: contact, p_code: code });
+  mineData = error ? null : data;
+}
+
 // ---------- Rendering ----------
 function photoHtml(it, i){
   const ph = `<div class="ph" style="background:${COLORS[i % 6]}">${esc(String(it.title)[0])}</div>`;
@@ -207,16 +274,9 @@ function photoHtml(it, i){
   return `<img class="photo" src="${esc(CONFIG.IMAGES_FOLDER + it.image)}" alt="${esc(it.title)}" loading="lazy" onerror="this.outerHTML='${ph.replace(/"/g, "&quot;")}'">`;
 }
 
-function when(t){
-  const d = new Date(t), mins = Math.round((Date.now() - d) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return mins + " min ago";
-  if (mins < 24 * 60) return Math.round(mins / 60) + " h ago";
-  return d.toLocaleDateString(undefined, {day: "numeric", month: "short"}) + " " + d.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit"});
-}
 function historyHtml(id, list){
   if (!list.length) return "";
-  const myIds = new Set(myBids.map(m => m.bid_id));
+  const myIds = new Set((mineData ? mineData.bids : []).map(m => m.bid_id));
   return `<details class="history" data-hist="${esc(id)}" ${openHist.has(id) ? "open" : ""}>
     <summary>Bid history (${list.length})</summary>
     <ol>${list.map((b, i) => `<li class="${i === 0 ? "top" : ""}">
@@ -230,7 +290,7 @@ function auctionHtml(it){
   if (!a) return `<div class="msg">This auction isn't set up yet.</div>`;
   const list = bids[it.id] || [], top = list[0], over = ended(a);
   const need = top ? Number(top.amount) + Number(a.min_step) : Math.max(Number(a.start_price), 0.01);
-  const myActive = myBids.filter(m => m.item_id === it.id && list.some(b => b.id === m.bid_id));
+  const myActive = (mineData ? mineData.bids : []).filter(m => m.item_id === it.id && list.some(b => b.id === m.bid_id));
   let h = `<div class="auction">
     <span class="small">${top ? (over ? "Winning bid" : "Highest bid") : "Starting price"}</span>
     <span class="big">${money(top ? top.amount : a.start_price)}</span>
@@ -241,7 +301,7 @@ function auctionHtml(it){
   for (const m of myActive){
     const leading = top && top.id === m.bid_id;
     h += `<div class="mybid ${leading ? "" : "out"}"><span>Your bid ${money(m.amount)} · ${leading ? (over ? "you won" : "leading") : "outbid"}</span>
-      ${over ? "" : `<button class="link" data-act="withdraw" data-bid="${m.bid_id}" ${busy["w" + m.bid_id] ? "disabled" : ""}>Withdraw</button>`}</div>`;
+      ${over ? "" : `<button class="link" data-act="cancel" data-kind="bid" data-ref="${m.bid_id}" ${busy["bid" + m.bid_id] ? "disabled" : ""}>Withdraw</button>`}</div>`;
   }
   if (over) h += `<div class="state taken">${top ? "Auction ended" : "Ended with no bids"}</div>`;
   else h += `<div class="bidrow">
@@ -254,10 +314,10 @@ function auctionHtml(it){
 }
 
 function claimHtml(it){
-  const isMine = claimedByMe(it.id) && taken.has(it.id), isTaken = taken.has(it.id);
+  const mine = iClaimed(it.id) && taken.has(it.id), isTaken = taken.has(it.id);
   let h = `<div class="actions">`;
-  if (isMine) h += `<div class="mybid"><span>Claimed by you</span>
-      <button class="link" data-act="unclaim" data-id="${esc(it.id)}" ${busy["u" + it.id] ? "disabled" : ""}>Cancel claim</button></div>`;
+  if (mine) h += `<div class="mybid"><span>Claimed by you</span>
+      <button class="link" data-act="cancel" data-kind="claim" data-ref="${esc(it.id)}" ${busy["claim" + it.id] ? "disabled" : ""}>Cancel claim</button></div>`;
   else if (isTaken) h += `<div class="state taken">Already taken</div>`;
   else h += `<button data-act="claim" data-id="${esc(it.id)}" ${busy[it.id] || !sb ? "disabled" : ""}>${busy[it.id] ? "Claiming…" : "Claim"}</button>`;
   if (errors[it.id]) h += `<div class="msg" role="alert">${esc(errors[it.id])}</div>`;
@@ -266,7 +326,7 @@ function claimHtml(it){
 
 function isOpen(it){ return isAuction(it) ? !ended(auctions[it.id]) : !taken.has(it.id); }
 
-function render(){
+function renderGrid(){
   const grid = $("#grid");
   let list = items;
   if (filter === "free") list = list.filter(it => !isAuction(it) && priceLabel(it.price) === "Free");
@@ -274,7 +334,7 @@ function render(){
   if (filter === "open") list = list.filter(isOpen);
   if (!list.length){ grid.innerHTML = '<div class="empty">No items to show here.</div>'; return; }
   grid.innerHTML = list.map(it => {
-    const i = items.indexOf(it), dim = !isOpen(it) && !claimedByMe(it.id);
+    const i = items.indexOf(it), dim = !isOpen(it) && !iClaimed(it.id);
     const tags = isAuction(it) ? `<span class="kind">Auction</span>` : `<span class="price">${esc(priceLabel(it.price))}</span>`;
     return `<article class="card ${dim ? "is-taken" : ""}">${photoHtml(it, i)}
       <div class="body"><div class="tags">${tags}</div>
@@ -282,74 +342,129 @@ function render(){
       ${isAuction(it) ? auctionHtml(it) : claimHtml(it)}</div></article>`;
   }).join("");
 }
-// Don't redraw while someone is typing a bid
+
+// The "My claims & bids" list. `who` = {contact, code, data} of whoever is looked up.
+let lookedUp = null;
+function renderMine(){
+  const who = lookedUp || (mineData ? { contact: store.get("pt-contact", ""), code: mineData.code, data: mineData } : null);
+  const ul = $("#mylist");
+  if (!who){ ul.innerHTML = ""; return; }
+  const rows = [
+    ...who.data.claims.map(c => ({ kind: "claim", ref: c.item_id, t: titleOf(c.item_id), s: "Claimed " + when(c.at), can: true })),
+    ...who.data.bids.map(b => {
+      const a = auctions[b.item_id], over = ended(a), top = (bids[b.item_id] || [])[0];
+      const st = over ? (top && top.id === b.bid_id ? "you won" : "auction ended") : (top && top.id === b.bid_id ? "leading" : "outbid");
+      return { kind: "bid", ref: String(b.bid_id), t: titleOf(b.item_id), s: `Bid ${money(b.amount)} · ${st}`, can: !over };
+    })
+  ];
+  ul.innerHTML = rows.length ? rows.map(r => `<li><span class="t">${esc(r.t)}</span><span class="s">${esc(r.s)}</span>
+      ${r.can ? `<button class="ghost" data-act="cancel" data-kind="${r.kind}" data-ref="${esc(r.ref)}" data-from="list" ${busy[r.kind + r.ref] ? "disabled" : ""}>${r.kind === "claim" ? "Cancel" : "Withdraw"}</button>` : ""}</li>`).join("")
+    : `<li><span class="s">You have no active claims or bids.</span></li>`;
+}
+
+function renderCode(){
+  const code = mineData ? mineData.code : null;
+  $("#mycode").hidden = !code;
+  if (code) $("#mycode-val").textContent = fmtCode(code);
+}
+
+function render(){ renderGrid(); renderMine(); renderCode(); }
 function safeRender(){ if (!document.activeElement?.dataset?.draft) render(); }
 
 // ---------- Actions ----------
+function whoMsg(t){ const m = $("#whomsg"); m.textContent = t || ""; m.hidden = !t; }
+
 function who(id){
-  const name = $("#name").value.trim(), contact = $("#contact").value.trim();
+  const name = $("#name").value.trim(), contact = $("#contact").value.trim(), code = cleanCode($("#code").value);
   if (!name || !contact){ errors[id] = "Fill in your name and phone or email at the top first."; render(); $("#name").focus(); return null; }
-  return {name, contact};
+  return { name, contact, code };
+}
+
+function handleNeedCode(id){
+  errors[id] = "This phone or email was used before. Enter your personal code at the top.";
+  whoMsg("This phone or email already has a personal code. Enter it above to continue. Lost it? Ask the owner.");
+  $("#code").focus();
+}
+
+// After a successful claim/bid the database returns the person's code; save it on this device
+async function rememberCode(code){
+  const had = cleanCode(store.get("pt-code", ""));
+  store.set("pt-code", code); $("#code").value = fmtCode(code); whoMsg("");
+  await loadMine();
+  if (had !== code) $("#mycode").scrollIntoView({behavior: "smooth", block: "center"});
 }
 
 async function claim(id){
   const w = who(id); if (!w) return;
   errors[id] = null; busy[id] = true; render();
-  // The database allows only ONE claim per item; a second one fails with TAKEN
-  const { data, error } = await sb.rpc("claim_item", { p_item: id, p_name: w.name, p_contact: w.contact });
+  const { data, error } = await sb.rpc("claim_item", { p_item: id, p_name: w.name, p_contact: w.contact, p_code: w.code });
   busy[id] = false;
-  if (!error){ taken.add(id); myClaims.push({ item_id: id, token: data.token }); saveMyClaims(); }
-  else if ((error.message || "") === "TAKEN"){ taken.add(id); errors[id] = "Sorry, someone already claimed this."; }
-  else errors[id] = "Couldn't save your claim. Please try again.";
+  if (!error){ taken.add(id); await rememberCode(data.code); }
+  else {
+    const m = error.message || "";
+    if (m === "TAKEN"){ taken.add(id); errors[id] = "Sorry, someone already claimed this."; }
+    else if (m === "NEED_CODE") handleNeedCode(id);
+    else errors[id] = "Couldn't save your claim. Please try again.";
+  }
   render();
-}
-
-async function unclaim(id){
-  const c = myClaims.find(x => x.item_id === id); if (!c) return;
-  busy["u" + id] = true; render();
-  const { error } = await sb.rpc("unclaim_item", { p_item: id, p_token: c.token });
-  busy["u" + id] = false;
-  if (!error || error.message === "NOT_YOURS"){   // NOT_YOURS: already removed by the owner
-    myClaims = myClaims.filter(x => x.item_id !== id); saveMyClaims();
-  } else errors[id] = "Couldn't cancel your claim. Please try again.";
-  await loadState(); render();
 }
 
 async function bid(id){
   const w = who(id); if (!w) return;
-  const amount = Number(String(drafts[id] ?? $("#bid-" + CSS.escape(id))?.value ?? "").replace(",", "."));
+  const amount = Number(String(drafts[id] ?? document.getElementById("bid-" + id)?.value ?? "").replace(",", "."));
   if (!amount || amount <= 0){ errors[id] = "Enter an amount to bid."; render(); return; }
   errors[id] = null; busy[id] = true; render();
-  const { data, error } = await sb.rpc("place_bid", { p_item: id, p_name: w.name, p_contact: w.contact, p_amount: amount });
+  const { data, error } = await sb.rpc("place_bid", { p_item: id, p_name: w.name, p_contact: w.contact, p_code: w.code, p_amount: amount });
   busy[id] = false;
-  if (!error){
-    myBids.push({ bid_id: data.bid_id, token: data.token, item_id: id, amount: data.amount }); saveMyBids();
-    delete drafts[id];
-  } else {
+  if (!error){ delete drafts[id]; await rememberCode(data.code); }
+  else {
     const m = error.message || "";
     if (m.startsWith("TOO_LOW:")) { errors[id] = `Someone bid higher. Bid at least ${money(m.split(":")[1])}.`; delete drafts[id]; }
     else if (m === "CLOSED") errors[id] = "Bidding has closed for this item.";
+    else if (m === "NEED_CODE") handleNeedCode(id);
     else errors[id] = "Couldn't place your bid. Please try again.";
   }
   await loadState(); render();
 }
 
-async function withdraw(bidId){
-  const m = myBids.find(x => x.bid_id === bidId); if (!m) return;
-  busy["w" + bidId] = true; render();
-  const { error } = await sb.rpc("withdraw_bid", { p_bid: bidId, p_token: m.token });
-  busy["w" + bidId] = false;
-  if (!error){ myBids = myBids.filter(x => x.bid_id !== bidId); saveMyBids(); }
-  else errors[m.item_id] = error.message === "CLOSED" ? "The auction has ended, so bids can't be withdrawn." : "Couldn't withdraw your bid. Please try again.";
-  await loadState(); render();
+async function cancelItem(kind, ref, fromList){
+  const who = (fromList && lookedUp) || { contact: store.get("pt-contact", ""), code: mineData && mineData.code };
+  if (!who.code) return;
+  busy[kind + ref] = true; render();
+  const { error } = await sb.rpc("cancel_mine", { p_contact: who.contact, p_code: who.code, p_kind: kind, p_ref: String(ref) });
+  busy[kind + ref] = false;
+  const msg = $("#m-msg");
+  if (error){
+    msg.hidden = false; msg.className = "cmsg bad";
+    msg.textContent = error.message === "CLOSED" ? "That auction has ended, so the bid can't be withdrawn." : "Couldn't cancel that. Refresh and try again.";
+  }
+  await loadState(); await loadMine();
+  if (lookedUp) await lookup(lookedUp.contact, lookedUp.code, true);
+  render();
+}
+
+async function lookup(contact, code, quiet){
+  const msg = $("#m-msg");
+  const { data, error } = await sb.rpc("my_items", { p_contact: contact, p_code: cleanCode(code) });
+  if (error){
+    lookedUp = null;
+    msg.hidden = false; msg.className = "cmsg bad";
+    msg.textContent = "No match for that phone or email and code. Check both and try again.";
+  } else {
+    lookedUp = { contact, code: cleanCode(code), data };
+    if (!quiet){ msg.hidden = false; msg.className = "cmsg ok"; msg.textContent = `Hi ${data.name}, here's what you have.`; }
+  }
+  renderMine();
 }
 
 $("#grid").addEventListener("click", e => {
   const b = e.target.closest("button[data-act]"); if (!b) return;
   if (b.dataset.act === "claim") claim(b.dataset.id);
-  if (b.dataset.act === "unclaim") unclaim(b.dataset.id);
   if (b.dataset.act === "bid") bid(b.dataset.id);
-  if (b.dataset.act === "withdraw") withdraw(Number(b.dataset.bid));
+  if (b.dataset.act === "cancel") cancelItem(b.dataset.kind, b.dataset.ref);
+});
+$("#mylist").addEventListener("click", e => {
+  const b = e.target.closest("button[data-act='cancel']"); if (b) cancelItem(b.dataset.kind, b.dataset.ref, true);
 });
 $("#grid").addEventListener("toggle", e => {
   const d = e.target; if (!d.dataset?.hist) return;
@@ -361,15 +476,34 @@ document.querySelectorAll(".filters button").forEach(b => b.onclick = () => {
   document.querySelectorAll(".filters button").forEach(x => x.setAttribute("aria-pressed", x === b));
   render();
 });
+$("#copy-code").onclick = e => {
+  const t = $("#mycode-val").textContent;
+  navigator.clipboard?.writeText(t).then(() => { e.target.textContent = "Copied"; setTimeout(() => e.target.textContent = "Copy", 1500); }, () => {});
+};
+$("#lookup").addEventListener("submit", async e => {
+  e.preventDefault();
+  if (!sb) return;
+  const contact = $("#m-contact").value.trim(), code = $("#m-code").value;
+  if (!contact || cleanCode(code).length !== 6){
+    const msg = $("#m-msg"); msg.hidden = false; msg.className = "cmsg bad";
+    msg.textContent = "Enter your phone or email and your 6-character code."; return;
+  }
+  $("#m-go").disabled = true; await lookup(contact, code); $("#m-go").disabled = false;
+});
+// Pre-fill the lookup with this device's details
+$("#m-contact").value = store.get("pt-contact", "");
+$("#m-code").value = fmtCode(store.get("pt-code", ""));
 
 // ---------- Start ----------
 (async () => {
   try { items = await loadItems(); }
   catch (e) { $("#grid").innerHTML = `<div class="empty">${esc(e.message)}. Upload your Excel file next to index.html.</div>`; return; }
-  await loadState(); render();
+  await Promise.all([loadState(), loadMine()]);
+  if (mineData) $("#mine").open = mineData.claims.length + mineData.bids.length > 0;
+  render();
   if (sb) sb.channel("claims").on("postgres_changes", {event: "*", schema: "public", table: "claims"}, () => loadState().then(safeRender)).subscribe();
-  setInterval(() => loadState().then(safeRender), 10000);   // refresh bids every 10 s
-  setInterval(() => {                                          // tick the countdowns
+  setInterval(() => Promise.all([loadState(), loadMine()]).then(safeRender), 10000);
+  setInterval(() => {
     let flipped = false;
     document.querySelectorAll(".countdown").forEach(el => {
       const t = timeLeft(el.dataset.ends); if (t === "Ended" && el.textContent !== "Ended") flipped = true; el.textContent = t;
